@@ -5,7 +5,26 @@ import json
 import uuid
 from typing import Any
 
-from openai import AsyncOpenAI, BadRequestError
+from openai import APIError, AsyncOpenAI, BadRequestError
+
+# Mirrors Letta's error_utils.is_context_window_overflow_message
+_OVERFLOW_PHRASES = (
+    "context_length_exceeded",
+    "exceeds the context window",
+    "This model's maximum context length is",
+    "maximum context length",
+    "Input tokens exceed the configured limit",
+    "exceeds the maximum allowed input length",
+)
+
+
+def _is_context_overflow(e: Exception) -> bool:
+    # Check structured error code first (OpenAI / DeepSeek return this in e.body)
+    if isinstance(e, BadRequestError) and isinstance(e.body, dict):
+        code = (e.body.get("error") or {}).get("code", "")
+        if code == "context_length_exceeded":
+            return True
+    return any(p in str(e) for p in _OVERFLOW_PHRASES)
 
 from memgpt.compaction import compact, count_tokens
 from memgpt.config import Config, chat_extras
@@ -93,8 +112,8 @@ class MemGPTAgent:
                     tool_choice="auto",
                     **chat_extras(self.cfg),
                 )
-            except BadRequestError as e:
-                if "context" in str(e).lower() or "token" in str(e).lower():
+            except (BadRequestError, APIError) as e:
+                if _is_context_overflow(e):
                     await self._run_compaction(trigger="context_window_exceeded")
                     continue
                 raise

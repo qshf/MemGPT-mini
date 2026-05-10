@@ -34,16 +34,57 @@
 
 ## 环境搭建
 
-**前置条件：** Python 3.11+，带有 `pgvector` 扩展的 PostgreSQL，OpenAI API Key。
+**前置条件：** Python 3.11+、带有 `pgvector` 扩展的 PostgreSQL，以及可用的 OpenAI 兼容 API Key。
+
+1. 先创建本地环境变量文件。
 
 ```bash
 cd /data/memgpt-mini
-cp .env.example .env    # 填写 OPENAI_API_KEY, PG URI
-uv sync                 # 或者: pip install -e .
+cp .env.example .env
+```
+
+至少需要配置：
+
+- `DEEPSEEK_API_KEY`（或 `MEMGPT_CHAT_API_KEY`）
+- `MEMGPT_PG_URI`
+- 如果你希望存档记忆使用向量检索，再配置 `DASHSCOPE_API_KEY`
+
+如果不配置 embedding key，存档记忆会回退为普通的 Postgres 文本搜索。
+
+2. 启动带 `pgvector` 扩展的 PostgreSQL。
+
+方案 A：本地 PostgreSQL
+
+```bash
 createdb memgpt_mini    # 如果尚未创建
 psql memgpt_mini -c "CREATE EXTENSION IF NOT EXISTS vector;"
-python demo.py
+```
 
+方案 B：Docker
+
+```bash
+docker run -d --name memgpt-pg \
+  -e POSTGRES_USER=memgpt \
+  -e POSTGRES_PASSWORD=memgpt \
+  -e POSTGRES_DB=memgpt_mini \
+  -p 5432:5432 \
+  pgvector/pgvector:pg16
+
+docker exec -it memgpt-pg psql -U memgpt -d memgpt_mini \
+  -c "CREATE EXTENSION IF NOT EXISTS vector;"
+```
+
+默认的 `.env.example` 已经指向上面这套 Docker 数据库：
+
+```bash
+MEMGPT_PG_URI=postgresql+asyncpg://memgpt:memgpt@localhost:5432/memgpt_mini
+```
+
+3. 安装依赖并运行 demo。
+
+```bash
+uv sync                 # 或者: pip install -e .
+python demo.py
 ```
 
 ## 术语映射表
@@ -80,13 +121,4 @@ memgpt/
   agent.py               单步循环、工具分发、压缩触发器
 demo.py                  交互式命令行界面 (CLI)
 
-```
-
-
-```
-docker run -d --name memgpt-pg \
-  -e POSTGRES_USER=memgpt -e POSTGRES_PASSWORD=memgpt \
-  -e POSTGRES_DB=memgpt_mini \
-  -p 5432:5432 \
-  pgvector/pgvector:pg16 2>&1 | tail -20
 ```

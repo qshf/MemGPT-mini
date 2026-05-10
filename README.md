@@ -37,12 +37,54 @@ Prereqs: Python 3.11+, PostgreSQL with the `pgvector` extension.
 
 Both are OpenAI-compatible, so the same `AsyncOpenAI` client handles them via `base_url` + `api_key`.
 
+1. Create your local env file.
+
 ```bash
 cd /data/memgpt-mini
-cp .env.example .env    # keys are prefilled; edit if you want different ones
-uv sync                 # or: pip install -e .
+cp .env.example .env
+```
+
+Set at least:
+
+- `DEEPSEEK_API_KEY` (or `MEMGPT_CHAT_API_KEY`)
+- `MEMGPT_PG_URI`
+- `DASHSCOPE_API_KEY` if you want vector embeddings for archival memory
+
+If you skip the embedding key, archival memory falls back to plain Postgres text search.
+
+2. Start PostgreSQL with `pgvector`.
+
+Option A: local PostgreSQL
+
+```bash
 createdb memgpt_mini
 psql memgpt_mini -c "CREATE EXTENSION IF NOT EXISTS vector;"
+```
+
+Option B: Docker
+
+```bash
+docker run -d --name memgpt-pg \
+  -e POSTGRES_USER=memgpt \
+  -e POSTGRES_PASSWORD=memgpt \
+  -e POSTGRES_DB=memgpt_mini \
+  -p 5432:5432 \
+  pgvector/pgvector:pg16
+
+docker exec -it memgpt-pg psql -U memgpt -d memgpt_mini \
+  -c "CREATE EXTENSION IF NOT EXISTS vector;"
+```
+
+The default `.env.example` already points at this Docker database:
+
+```bash
+MEMGPT_PG_URI=postgresql+asyncpg://memgpt:memgpt@localhost:5432/memgpt_mini
+```
+
+3. Install dependencies and run the demo.
+
+```bash
+uv sync                 # or: pip install -e .
 python demo.py
 ```
 
